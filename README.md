@@ -13,6 +13,7 @@ The database stores suppliers, product categories, employees, customers, and pro
 | `order_details`  | Line items for each order: product, quantity, unit price. |
 
 Analysis Questions
+
 1️. Customer Insights
 
 Gain an understanding of customer engagement and purchasing behavior.
