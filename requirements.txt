@@ -1,0 +1,2 @@
+# Required only when DB_BACKEND=mysql (Amazon RDS MySQL / Aurora MySQL).
+PyMySQL>=1.1,<2

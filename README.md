@@ -1,86 +1,92 @@
-# Grocery-Store-Management-System-Using-SQL
-The database stores suppliers, product categories, employees, customers, and products, linking each item to its supplier and category. Orders track customer purchases handled by employees, while a order items table records individual order details such as product quantities, pricing, and totals.
-## 📦 Table Descriptions
+# Freshlane — Grocery Store Management
 
-| Table Name       | Description |
-|------------------|-------------|
-| `suppliers`      | Stores supplier info; each supplier provides multiple products. |
-| `categories`     | Contains product categories; each category has many products. |
-| `products`       | Product list with price, stock, category, and supplier links. |
-| `customers`      | Customer details; each customer can place multiple orders. |
-| `employees`      | Employee data; employees process customer orders. |
-| `orders`         | Customer orders with date, employee, and customer references. |
-| `order_details`  | Line items for each order: product, quantity, unit price. |
+A working manager dashboard backed by SQLite or Amazon RDS MySQL and a Python HTTP server. Manage everyday store operations in the browser without writing SQL. SQLite needs no external database server.
 
-Analysis Questions
+## Run on Windows
 
-1️. Customer Insights
+Install Python 3.10+ if it is not already available, then run from this folder:
 
-Gain an understanding of customer engagement and purchasing behavior.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
 
-How many unique customers have placed orders?
+Or run `python app.py` with Python 3.10+. Open http://127.0.0.1:8000 and create your manager password (at least 10 characters). The launcher also supports the Python runtime bundled with Codex on this computer.
 
+The server listens only on this computer. Keep the terminal running; press Ctrl+C to stop. Change the port with the `PORT` environment variable. The first launch creates `data/grocery.db` and imports the supplied CSV files once. Restarting preserves changes.
 
-Which customers have placed the highest number of orders?
+## Amazon RDS MySQL connection
 
+The default database is local SQLite. To use an Amazon RDS for MySQL or Aurora MySQL instance, first create an empty database and a least-privilege application user on the RDS instance. Create a project Python environment and install the one required driver:
 
-What is the total and average purchase value per customer?
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
+Set connection details in the PowerShell window that starts the app. Do not put the real password in Git, source files, or `.env.example`.
 
-Who are the top 5 customers by total purchase amount?
+```powershell
+$env:DB_BACKEND = 'mysql'
+$env:RDS_HOST = 'your-instance.xxxxxxxxxxxx.ap-south-1.rds.amazonaws.com'
+$env:RDS_PORT = '3306'
+$env:RDS_DATABASE = 'freshlane'
+$env:RDS_USER = 'freshlane_app'
+$env:RDS_PASSWORD = 'your-secret-password'
+$env:RDS_SSL_CA = 'C:\secure\global-bundle.pem'  # Recommended RDS CA bundle
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
 
-2. Product Performance
-Evaluate how well products are performing in terms of sales and revenue.
+The launcher prefers `.venv` automatically. The connection is implemented in `db.py`; it selects MySQL only when `DB_BACKEND=mysql`. On the first successful RDS launch, Freshlane creates its tables from `schema_mysql.sql` and imports the supplied CSV data once. Do this only with a new, empty application database. Network access must be allowed from the computer running Freshlane to the RDS security group on port 3306.
 
-How many products exist in each category?
+## Manager workflows
 
-What is the average price of products by category?
+- **Overview:** today's revenue/orders, active products, low-stock alerts, historical revenue chart, recent orders, and best sellers.
+- **Inventory:** create and edit products, unique SKUs, selling prices, supplier/category links, reorder levels, and active status. Add categories from the UI.
+- **Receive / adjust stock:** enter opening counts, supplier deliveries, damaged stock, or corrections with a required reason. Every change creates a stock movement.
+- **Point of sale:** search products, build a basket, select a customer (or walk-in), employee, and Cash/Card/UPI payment method. Completion saves the order and reduces stock atomically.
+- **Sales & orders:** search orders, view/print itemized receipts, export CSV, and void a live sale with a reason. Voiding restores stock exactly once and excludes the sale from revenue.
+- **Customers, Suppliers, Team:** create/edit records and deactivate them while preserving historical relationships.
+- **Reports:** total revenue, average order value, employee sales, payment breakdown, stock retail value, and the latest 200 stock movements.
 
-Which products have the highest total sales volume (by quantity)?
+## Important source-data decisions
 
-What is the total revenue generated by each product?
+The original `Grocery Store Management_SQL.sql` contains unrelated credit-card tables and had pre-existing local edits. It has been preserved. The application's correct grocery schema is `schema.sql`.
 
-How do product sales vary by category and supplier?
+The supplied CSVs include no inventory quantities, tax rates, cost prices, or payment methods. Opening inventory therefore starts at **zero**. Receive your actual counted quantities before checkout. No fabricated inventory or recent sales are added. Historical orders retain their original dates and are labeled with the payment method `Historical`; they do not deduct current stock and cannot be voided.
 
-3. Sales and Order Trends
-Analyze business performance through orders and revenue over time.
-How many orders have been placed in total?
+Prices are rounded to two decimals and stored as integer paise. Imported order totals are recalculated from rounded unit prices × quantity, so they can differ slightly from the source's floating-point TotalPrice values. Category names are provisional labels for the source category IDs; review product categorization for your store. The legacy source includes some unusual assignments (for example, mouth wash under category 2), which can be corrected through Inventory.
 
-What is the average value per order?
+## Database and integrity
 
-On which dates were the most orders placed?
+`schema.sql` and `schema_mysql.sql` define categories, suppliers, customers, employees, products, orders, order_items, stock_movements, and settings. `db.py` selects the matching database connection. Foreign keys, unique SKU constraints, nonnegative stock/price checks, and positive line-item quantities protect data. Checkout and stock mutations acquire a database write transaction before validation to prevent concurrent overselling. Historical unit prices and product names are retained on order lines. The backend calculates totals and does not trust prices from the browser.
 
-What are the monthly trends in order volume and revenue?
+Manager passwords use salted PBKDF2-SHA256. Sessions use HttpOnly/SameSite cookies and expire after eight hours or a server restart. API writes reject cross-origin browser requests. Credentials and database files are not committed.
 
-How do order patterns vary across weekdays and weekends?
+## Backups
 
-4️. Supplier Contribution
+Stop the server and copy `data/grocery.db` to a safe backup location. Restore by stopping the server and replacing that file with your backup. Store this file securely: it contains customer details and your manager password hash. `GROCERY_DB` can specify a separate database file for testing or another store.
 
-Identify the most active and profitable suppliers.
-How many suppliers are there in the database?
+## Tests
 
-Which supplier provides the most products?
+```powershell
+python -m unittest discover -s tests -v
+node --check web/app.js
+```
 
-What is the average price of products from each supplier?
+The database tests create isolated temporary databases under `data/` and verify CSV import, monetary rounding, checkout/void behavior, rollback, inactive products, and overselling protection.
 
-Which suppliers contribute the most to total product sales (by revenue)?
+An optional Playwright browser test is in `tests/browser.cjs`. It needs Node.js, Playwright, and Microsoft Edge (or set `BROWSER_CHANNEL=chrome`). Start a **fresh disposable database** on port 8001, then run the script. It creates a test manager account and writes test records. Do not point it at a live store. Screenshots are written under `data/`.
 
-5️. Employee Performance
+## Scope
 
-Assess how employees are handling and influencing sales.
-How many employees have processed orders?
+This is a functional local, single-manager application. Card/UPI selections record payments collected separately; there is no payment gateway. Voids record cancellation, not an automatic financial refund. It does not yet implement GST/tax invoices, discounts, partial returns, purchase orders/payables, batch/expiry tracking, cost-based profit, barcode hardware integration, multiple roles, or multi-store synchronization. It is not configured for public internet hosting; a public deployment needs a production server, HTTPS, login throttling, and operational backup/recovery controls.
 
-Which employees have handled the most orders?
+## Files
 
-What is the total sales value processed by each employee?
-
-What is the average order value handled per employee?
-
-6️. Order Details Deep Dive
-
-Explore item-level sales patterns and pricing behavior.
-What is the relationship between quantity ordered and total price?
-
-What is the average quantity ordered per product?
-
-How does the unit price vary across products and orders?
+- `app.py`: HTTP API, authentication, transaction logic, and CSV import
+- `db.py`: database connection layer; SQLite by default, RDS MySQL through environment variables
+- `schema.sql` / `schema_mysql.sql`: normalized SQLite and MySQL schemas
+- `web/`: responsive dashboard, forms, point of sale, and receipts
+- `tests/`: database and browser verification
+- `start.ps1`: Windows launcher
+- Original CSV/PDF/SQL files: preserved project source material

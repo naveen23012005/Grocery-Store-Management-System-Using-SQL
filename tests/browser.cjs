@@ -1,0 +1,55 @@
+// Run against a disposable database on port 8001, never a live store.
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+(async () => {
+  const browser = await chromium.launch({headless:true,channel:process.env.BROWSER_CHANNEL||'msedge'});
+  const page = await browser.newPage({viewport:{width:1440,height:1000}});
+  const errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:8001');
+  await page.locator('[name=password]').fill('Browser-test-only-2026');
+  await page.locator('#auth button').click();
+  await page.getByRole('heading',{name:'A fresh look at your store.'}).waitFor();
+  await page.locator('#receive').click();
+  await page.locator('[name=product_id]').selectOption('1');
+  await page.locator('[name=quantity]').fill('10');
+  await page.locator('[name=reason]').fill('Browser opening stock');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.locator('dialog').waitFor({state:'hidden'});
+  await page.locator('#new-sale').click();
+  await page.locator('[data-add="1"]').click();
+  await page.locator('[name=employee_id]').selectOption('1');
+  await page.locator('#complete').click();
+  await page.getByRole('heading',{name:'Freshlane · Receipt'}).waitFor();
+  await page.locator('#close').click();
+  await page.locator('[data-page=products]').click();
+  await page.locator('#search').fill('Basmati');
+  assert.match(await page.locator('#records').innerText(),/9 units/);
+  await page.locator('[data-edit="1"]').click();
+  await page.locator('[name=price]').fill('360.50');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.locator('dialog').waitFor({state:'hidden'});
+  await page.locator('[data-page=orders]').click();
+  await page.locator('[data-receipt]').first().click();
+  await page.locator('#void').click();
+  await page.locator('[name=reason]').fill('Browser void test');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.locator('dialog').waitFor({state:'hidden'});
+  await page.locator('[data-page=customers]').click();
+  await page.locator('#add').click();
+  await page.locator('[name=name]').fill('Test Customer');
+  await page.locator('[name=address]').fill('Test address');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await page.locator('dialog').waitFor({state:'hidden'});
+  for (const tab of ['suppliers','employees','reports','overview']) {
+    await page.locator(`[data-page=${tab}]`).click();
+    await page.locator('h1').waitFor();
+  }
+  await page.screenshot({path:'data/dashboard-preview.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'data/mobile-preview.png',fullPage:true});
+  assert.deepEqual(errors,[]);
+  await browser.close();
+  console.log('PASS: setup, stock receipt, checkout, receipt, product edit, void, customer create, all navigation, mobile overflow, no JavaScript errors.');
+})().catch(e=>{console.error(e);process.exit(1);});

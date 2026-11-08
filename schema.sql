@@ -1,0 +1,13 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS settings (setting_key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS suppliers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)));
+CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)));
+CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY, name TEXT NOT NULL, hire_date TEXT, phone TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)));
+CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, sku TEXT NOT NULL UNIQUE, category_id INTEGER NOT NULL REFERENCES categories(id), supplier_id INTEGER NOT NULL REFERENCES suppliers(id), price INTEGER NOT NULL CHECK(price>=0), stock INTEGER NOT NULL DEFAULT 0 CHECK(stock>=0), reorder_level INTEGER NOT NULL DEFAULT 10 CHECK(reorder_level>=0), active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)));
+CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer_id INTEGER REFERENCES customers(id), employee_id INTEGER NOT NULL REFERENCES employees(id), created_at TEXT NOT NULL, total INTEGER NOT NULL CHECK(total>=0), payment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'completed' CHECK(status IN ('completed','void')), source TEXT NOT NULL DEFAULT 'live', void_reason TEXT);
+CREATE TABLE IF NOT EXISTS order_items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), product_id INTEGER NOT NULL REFERENCES products(id), name TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0), unit_price INTEGER NOT NULL CHECK(unit_price>=0));
+CREATE TABLE IF NOT EXISTS stock_movements (id INTEGER PRIMARY KEY, product_id INTEGER NOT NULL REFERENCES products(id), quantity INTEGER NOT NULL CHECK(quantity!=0), reason TEXT NOT NULL, created_at TEXT NOT NULL, order_id INTEGER REFERENCES orders(id));
+CREATE INDEX IF NOT EXISTS orders_date ON orders(created_at);
+CREATE INDEX IF NOT EXISTS items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS movements_product ON stock_movements(product_id);
